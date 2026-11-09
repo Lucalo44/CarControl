@@ -1,14 +1,13 @@
 """The control logic: board events in, vehicle commands out.
 
-    AC button        open the climate menu (press again to close it)
-    joystick up/down raise/lower the target temperature, 0.5 °C per step (menu open only)
+    joystick click   open the climate menu (click again to close it)
+    joystick up/down raise/lower the target temperature, 1 °F per step (menu open only)
     joystick l/r     lower/raise the fan speed (menu open only)
-    joystick click   close the climate menu
     switch 1 / 2     driver / passenger seat heater: fully on when the switch is on, off when off
     switch 3         steering wheel heater: fully on / off
 
 Joystick moves while the menu is closed are ignored, so a bumped stick can't change
-the climate. The switches work at any time, because they're physical on/off positions.
+the climate; only a deliberate click opens the menu. The switches work at any time, because they're physical on/off positions.
 """
 
 from __future__ import annotations
@@ -39,9 +38,6 @@ class Controller:
         if k is Kind.HELLO:
             self.board_connected = True
             return Action("Controller board connected", changed=False)
-        if k is Kind.BUTTON:
-            self.menu_open = not self.menu_open
-            return Action("Climate menu opened" if self.menu_open else "Climate menu closed")
         if k is Kind.SWITCH:
             return self._switch(event.name, bool(event.on))
         if k is Kind.JOY:
@@ -49,19 +45,19 @@ class Controller:
         return Action(f"Ignored {event}", changed=False)
 
     def _joystick(self, direction: str) -> Action:
+        if direction == "PRESS":
+            self.menu_open = not self.menu_open
+            return Action("Climate menu opened" if self.menu_open else "Climate menu closed")
         if not self.menu_open:
             return Action(f"Joystick {direction.lower()} ignored (climate menu closed)", changed=False)
         s = self.vehicle.state()
-        if direction == "PRESS":
-            self.menu_open = False
-            return Action("Climate menu closed")
         if direction in ("UP", "DOWN"):
             before = s.target_temp
             self.vehicle.set_target_temp(before + (TEMP_STEP if direction == "UP" else -TEMP_STEP))
             after = self.vehicle.state().target_temp
             if after == before:
-                return Action(f"Temperature already at {'max' if direction == 'UP' else 'min'} ({after:.1f} °C)", False)
-            return Action(f"Temperature {after:.1f} °C")
+                return Action(f"Temperature already at {'max' if direction == 'UP' else 'min'} ({after:.0f} °F)", False)
+            return Action(f"Temperature {after:.0f} °F")
         if direction in ("LEFT", "RIGHT"):
             before = s.fan
             self.vehicle.set_fan(before + (1 if direction == "RIGHT" else -1))

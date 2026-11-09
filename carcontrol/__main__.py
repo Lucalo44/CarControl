@@ -45,7 +45,7 @@ def main(argv=None) -> int:
             for raw, ev in source.poll():
                 if ev is not None:
                     s = vehicle.state()
-                    print(f"{raw:<16} → {ctrl.handle(ev).text:<40} [{s.target_temp:.1f} °C, fan {s.fan}, "
+                    print(f"{raw:<16} → {ctrl.handle(ev).text:<40} [{s.target_temp:.0f} °F, fan {s.fan}, "
                           f"seats {s.seat_heat['driver']}/{s.seat_heat['passenger']}, wheel {s.wheel_heat}]")
             if getattr(source, "closed", False):
                 print("Connection closed.")

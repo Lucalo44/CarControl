@@ -3,9 +3,8 @@
 The board sends one ASCII event per line, newline-terminated, at 115200 baud:
 
     HELLO CarControl 1      board booted (protocol version 1)
-    BTN AC                  climate button pressed
     JOY UP|DOWN|LEFT|RIGHT  joystick pushed (repeats while held)
-    JOY PRESS               joystick clicked
+    JOY PRESS               joystick clicked (opens and closes the climate menu)
     SW 1|2|3 ON|OFF         switch position (sent on change, and once at boot)
 
 Anything else (blank lines, "# comments", unknown words) is ignored, so the
@@ -22,7 +21,6 @@ PROTOCOL_VERSION = 1
 
 class Kind(Enum):
     HELLO = "HELLO"
-    BUTTON = "BTN"
     JOY = "JOY"
     SWITCH = "SW"
 
@@ -33,7 +31,7 @@ JOY_DIRECTIONS = ("UP", "DOWN", "LEFT", "RIGHT", "PRESS")
 @dataclass(frozen=True)
 class Event:
     kind: Kind
-    name: str = ""  # "AC", a joystick direction, or a switch number as text
+    name: str = ""  # a joystick direction, or a switch number as text
     on: bool | None = None  # switches only
 
     def to_line(self) -> str:
@@ -52,8 +50,6 @@ def parse_line(line: str) -> Event | None:
     head, args = parts[0], parts[1:]
     if head == "HELLO":
         return Event(Kind.HELLO)
-    if head == "BTN" and args == ["AC"]:
-        return Event(Kind.BUTTON, "AC")
     if head == "JOY" and len(args) == 1 and args[0] in JOY_DIRECTIONS:
         return Event(Kind.JOY, args[0])
     if head == "SW" and len(args) == 2 and args[0] in ("1", "2", "3") and args[1] in ("ON", "OFF"):

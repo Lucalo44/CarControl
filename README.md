@@ -1,6 +1,6 @@
 # CarControl
 
-The goal of this project was a physical climate controller for my 2025 Volvo V60. The idea is a 5-way joystick, an AC button and three toggle switches wired to an Arduino UNO Q, which sends commands to the car over USB. The V60 puts almost all of its climate controls on the touchscreen, and reaching for a menu to bump the fan up a notch while driving gets old quickly.
+The goal of this project was a physical climate controller for my 2025 Volvo V60. The idea is a 5-way joystick and three toggle switches wired to an Arduino UNO Q, which sends commands to the car over USB. The V60 puts almost all of its climate controls on the touchscreen, and reaching for a menu to bump the fan up a notch while driving gets old quickly.
 
 The controller half of this works. The car half, as it turns out, can't be done over USB, so this repo pairs the real controller with a simulated car to develop and demo it on.
 
@@ -20,12 +20,11 @@ From simplest to most involved:
    1. Switch 1 turns the driver seat heater all the way on (level 3 of 3), and off when flipped back.
    2. Switch 2 does the same for the passenger seat.
    3. Switch 3 does the same for the steering wheel heater.
-2. **The AC button** opens the climate menu, and pressing it again closes it.
-3. **The joystick** only does anything while the climate menu is open, so bumping the stick can't change the climate by accident.
-   1. Up and down raise and lower the temperature by 0.5 °C, between 17 and 27 °C.
+2. **Clicking the joystick** opens the climate menu, and clicking it again closes it. I originally had a separate AC button for this, but the click on a 5-way module already does the job, and dropping the button means one less hole to drill and one less pin to wire.
+3. **Pushing the joystick** only does anything while the climate menu is open, so bumping the stick can't change the climate by accident. Opening the menu takes a deliberate click.
+   1. Up and down raise and lower the temperature by 1 °F, between 62 and 82 °F (the same range and step as a US-market Volvo).
    2. Left and right lower and raise the fan speed, from off up to 5.
-   3. Clicking the joystick closes the menu.
-   4. Holding a direction repeats it every 150ms after a 400ms pause, the same as a key held on a keyboard.
+   3. Holding a direction repeats it every 150ms after a 400ms pause, the same as a key held on a keyboard.
 
 The logic lives in [carcontrol/controller.py](carcontrol/controller.py). It takes board events in and sends vehicle commands out, with nothing hardware-specific in between.
 
@@ -49,7 +48,9 @@ The virtual environment has to be active in every new terminal (`source .venv/bi
 python -m carcontrol
 ```
 
-The left side of the window is a virtual controller with an on-screen joystick, the AC button and the three switches. The keyboard works too: the arrow keys are the joystick, Return clicks it, A is the AC button, and 1, 2 and 3 flip the switches. The right side is a stand-in for the car's centre screen. It has a climate bar along the bottom, the climate menu when it's open, and the cabin temperature. Cabin time runs 10× faster by default, so the cabin visibly cools toward the setpoint (switchable to 1× or 60×).
+The left side of the window is a virtual controller with an on-screen joystick and the three switches. The keyboard works too: the arrow keys are the joystick, Return or Space clicks it, and 1, 2 and 3 flip the switches.
+
+The right side is modelled on the dashboard of a left-hand-drive Volvo running [Volvo Car UX](https://www.volvocars.com/us/cars/volvo-car-ux/), the Google built-in interface on my V60. In order to test the controller against something close to what I'd actually be looking at, the centre display is drawn at the V60's 9-inch portrait proportions. A map fills the home screen, with a fixed climate bar along the bottom. That bar is laid out for left-hand drive, so the driver's temperature, seat and steering wheel heater sit on the left, the fan in the middle, and the passenger's seat and temperature on the right. Clicking the joystick slides a climate sheet up over the map, with the temperature, a segmented fan slider and a tile for each heater (again driver first). The temperature shows on both zones because the controller sets a single setpoint, which matches Volvo's synced mode. The steering wheel and driver display sit to the left of the screen, and the rim glows when its heater is on. Of note, this is a lookalike drawn in Qt rather than Volvo's actual software, so the colours and layout are my best approximation. Every temperature is in Fahrenheit, as it is on a US car. Cabin time runs 10× faster by default, so the cabin visibly cools toward the setpoint (switchable to 1× or 60×).
 
 ![Seat and steering wheel heaters on](docs/simulator_heaters.png)
 
@@ -63,7 +64,7 @@ python tools/fake_board.py
 python -m carcontrol --serial /dev/ttys011
 ```
 
-Add `--interactive` to type the inputs yourself (`ac`, `up`, `left`, `press`, `sw1 on` and so on). Add `--tcp 5555` to serve over the network the way the UNO Q does, then connect with `--tcp localhost:5555`. Of note, `python -m carcontrol --headless --serial PORT` skips the window and prints one line per event, which is handy for checking wiring.
+Add `--interactive` to type the inputs yourself (`press`, `up`, `left`, `sw1 on` and so on). Add `--tcp 5555` to serve over the network the way the UNO Q does, then connect with `--tcp localhost:5555`. Of note, `python -m carcontrol --headless --serial PORT` skips the window and prints one line per event, which is handy for checking wiring.
 
 ## Building the controller
 
@@ -72,8 +73,7 @@ Add `--interactive` to type the inputs yourself (`ac`, `up`, `left`, `press`, `s
 Every input goes between its pin and GND. The firmware turns on the internal pull-ups, so there are no resistors to add, and a closed contact reads LOW. That suits the UNO Q's 3.3V microcontroller fine. The pin map sits at the top of [carcontrol_inputs.h](firmware/carcontrol_serial/carcontrol_inputs.h):
 
 1. Joystick up, down, left, right and click on D2 to D6. The common pin of the 5-way module goes to GND.
-2. The AC button on D7.
-3. Switches 1, 2 and 3 on D8, D9 and D10.
+2. Switches 1, 2 and 3 on D7, D8 and D9 (they moved down one pin when the AC button came out).
 
 The firmware debounces each input for 20ms. It sends switch positions on every change, and all three again whenever the host connects, so the display never shows a heater off while its switch is on.
 
@@ -88,7 +88,7 @@ I haven't flashed either one onto real hardware yet. Of the two, the UNO Q app i
 
 ### The protocol
 
-The board sends one event per line at 115200 baud: `HELLO CarControl 1`, `BTN AC`, `JOY UP`/`DOWN`/`LEFT`/`RIGHT`/`PRESS`, and `SW 1 ON`/`SW 1 OFF` (likewise 2 and 3). When the host sends `?`, the board replies with `HELLO` and its switch positions. Anything else is ignored, so the firmware can print debug text freely. The parser is in [carcontrol/protocol.py](carcontrol/protocol.py), and the serial and TCP readers are in [carcontrol/sources.py](carcontrol/sources.py).
+The board sends one event per line at 115200 baud: `HELLO CarControl 1`, `JOY UP`/`DOWN`/`LEFT`/`RIGHT`/`PRESS`, and `SW 1 ON`/`SW 1 OFF` (likewise 2 and 3). When the host sends `?`, the board replies with `HELLO` and its switch positions. Anything else is ignored, so the firmware can print debug text freely. The parser is in [carcontrol/protocol.py](carcontrol/protocol.py), and the serial and TCP readers are in [carcontrol/sources.py](carcontrol/sources.py).
 
 ## Tests
 
@@ -96,10 +96,10 @@ The board sends one event per line at 115200 baud: `HELLO CarControl 1`, `BTN AC
 python -m pytest tests
 ```
 
-The 29 tests in [tests/test_carcontrol.py](tests/test_carcontrol.py) cover several areas:
+The 28 tests in [tests/test_carcontrol.py](tests/test_carcontrol.py) cover several areas:
 
 1. **Protocol:** the parser, plus serial reads that split lines at arbitrary points.
-2. **Menu rules:** including the joystick doing nothing while the menu is closed.
+2. **Menu rules:** the click toggling the menu, and the joystick doing nothing while the menu is closed.
 3. **Limits:** temperature and fan stop at their ends.
 4. **Heaters:** each switch turns its heater fully on and off.
 5. **Cabin model:** a higher fan speed pulls the cabin to the target faster.

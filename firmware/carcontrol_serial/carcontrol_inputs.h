@@ -9,8 +9,7 @@ const uint8_t PIN_JOY_DOWN = 3;
 const uint8_t PIN_JOY_LEFT = 4;
 const uint8_t PIN_JOY_RIGHT = 5;
 const uint8_t PIN_JOY_PRESS = 6;
-const uint8_t PIN_AC_BUTTON = 7;
-const uint8_t PIN_SWITCH[3] = {8, 9, 10};  // 1 = driver seat, 2 = passenger seat, 3 = steering wheel
+const uint8_t PIN_SWITCH[3] = {7, 8, 9};  // 1 = driver seat, 2 = passenger seat, 3 = steering wheel
 
 const unsigned long DEBOUNCE_MS = 20;
 const unsigned long REPEAT_DELAY_MS = 400;
@@ -33,7 +32,6 @@ static Input inputs[] = {
   {PIN_JOY_LEFT, "JOY LEFT", true, false},
   {PIN_JOY_RIGHT, "JOY RIGHT", true, false},
   {PIN_JOY_PRESS, "JOY PRESS", false, false},
-  {PIN_AC_BUTTON, "BTN AC", false, false},
   {PIN_SWITCH[0], "1", false, true},
   {PIN_SWITCH[1], "2", false, true},
   {PIN_SWITCH[2], "3", false, true},
@@ -73,7 +71,7 @@ inline void pollInputs(Print& out) {
       in.stable = in.raw;
       if (in.isSwitch) {
         sendSwitch(out, in);
-      } else if (in.stable) {  // buttons and joystick fire on press, not release
+      } else if (in.stable) {  // the joystick fires on press, not release
         out.println(in.event);
         in.nextRepeat = now + REPEAT_DELAY_MS;
       }

@@ -10,7 +10,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
-TEMP_MIN, TEMP_MAX, TEMP_STEP = 17.0, 27.0, 0.5  # °C
+TEMP_MIN, TEMP_MAX, TEMP_STEP = 62.0, 82.0, 1.0  # °F, Volvo's US-market range and step
 FAN_MAX = 5
 HEAT_MAX = 3  # seat and steering wheel heaters: 0 = off, 3 = highest
 
@@ -19,11 +19,11 @@ SEATS = ("driver", "passenger")
 
 @dataclass
 class ClimateState:
-    target_temp: float = 21.0
+    target_temp: float = 70.0
     fan: int = 2
     seat_heat: dict | None = None
     wheel_heat: int = 0
-    cabin_temp: float = 28.0  # a car that's been parked in the sun
+    cabin_temp: float = 82.0  # a car that's been parked in the sun
 
     def __post_init__(self):
         if self.seat_heat is None:
@@ -35,7 +35,7 @@ class Vehicle(ABC):
     def state(self) -> ClimateState: ...
 
     @abstractmethod
-    def set_target_temp(self, celsius: float) -> None: ...
+    def set_target_temp(self, fahrenheit: float) -> None: ...
 
     @abstractmethod
     def set_fan(self, level: int) -> None: ...
@@ -54,15 +54,15 @@ def clamp(v, lo, hi):
 class SimulatedVehicle(Vehicle):
     """Applies commands instantly and moves the cabin temperature toward the target over time."""
 
-    def __init__(self, state: ClimateState | None = None, outside_temp: float = 28.0):
+    def __init__(self, state: ClimateState | None = None, outside_temp: float = 82.0):
         self._s = state or ClimateState()
         self.outside_temp = outside_temp
 
     def state(self) -> ClimateState:
         return self._s
 
-    def set_target_temp(self, celsius: float) -> None:
-        self._s.target_temp = clamp(round(celsius / TEMP_STEP) * TEMP_STEP, TEMP_MIN, TEMP_MAX)
+    def set_target_temp(self, fahrenheit: float) -> None:
+        self._s.target_temp = clamp(round(fahrenheit / TEMP_STEP) * TEMP_STEP, TEMP_MIN, TEMP_MAX)
 
     def set_fan(self, level: int) -> None:
         self._s.fan = int(clamp(level, 0, FAN_MAX))

@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def make():
-    v = SimulatedVehicle(ClimateState(target_temp=21.0, fan=2))
+    v = SimulatedVehicle(ClimateState(target_temp=70.0, fan=2))
     return v, Controller(v)
 
 
@@ -22,7 +22,6 @@ def feed(ctrl, *lines):
 # ---- protocol ----
 @pytest.mark.parametrize("line,expected", [
     ("HELLO CarControl 1", Event(Kind.HELLO)),
-    ("BTN AC", Event(Kind.BUTTON, "AC")),
     ("joy up\r", Event(Kind.JOY, "UP")),
     ("JOY PRESS", Event(Kind.JOY, "PRESS")),
     ("SW 2 ON", Event(Kind.SWITCH, "2", True)),
@@ -32,27 +31,27 @@ def test_parse_valid(line, expected):
     assert parse_line(line) == expected
 
 
-@pytest.mark.parametrize("line", ["", "   ", "# debug text", "JOY", "JOY SIDEWAYS", "SW 4 ON", "SW 1 MAYBE", "BTN B"])
+@pytest.mark.parametrize("line", ["", "   ", "# debug text", "JOY", "JOY SIDEWAYS", "SW 4 ON", "SW 1 MAYBE", "BTN AC"])
 def test_parse_ignores_junk(line):
     assert parse_line(line) is None
 
 
 def test_round_trip_lines():
-    for line in ("BTN AC", "JOY LEFT", "SW 1 ON", "SW 3 OFF"):
+    for line in ("JOY PRESS", "JOY LEFT", "SW 1 ON", "SW 3 OFF"):
         assert parse_line(line).to_line() == line
 
 
 def test_line_buffer_handles_split_reads():
     b = LineBuffer()
     assert b.feed(b"JOY U") == []
-    assert b.feed(b"P\r\nBTN AC\nSW 1") == ["JOY UP", "BTN AC"]
+    assert b.feed(b"P\r\nJOY PRESS\nSW 1") == ["JOY UP", "JOY PRESS"]
     assert b.feed(b" ON\n") == ["SW 1 ON"]
 
 
 def test_line_buffer_drops_runaway_garbage():
     b = LineBuffer(max_line=16)
     b.feed(b"\xff" * 100)
-    assert b.feed(b"BTN AC\n") == ["BTN AC"]
+    assert b.feed(b"JOY PRESS\n") == ["JOY PRESS"]
 
 
 # ---- controller ----
@@ -60,38 +59,38 @@ def test_joystick_ignored_until_menu_open():
     v, c = make()
     acts = feed(c, "JOY UP", "JOY RIGHT")
     assert not any(a.changed for a in acts)
-    assert v.state().target_temp == 21.0 and v.state().fan == 2
+    assert v.state().target_temp == 70.0 and v.state().fan == 2
 
 
 def test_menu_controls_temperature_and_fan():
     v, c = make()
-    feed(c, "BTN AC", "JOY UP", "JOY UP", "JOY DOWN", "JOY RIGHT", "JOY RIGHT", "JOY LEFT")
+    feed(c, "JOY PRESS", "JOY UP", "JOY UP", "JOY DOWN", "JOY RIGHT", "JOY RIGHT", "JOY LEFT")
     assert c.menu_open
-    assert v.state().target_temp == 21.5
+    assert v.state().target_temp == 71.0
     assert v.state().fan == 3
 
 
-def test_joystick_click_closes_menu():
-    v, c = make()
-    feed(c, "BTN AC", "JOY PRESS", "JOY UP")
-    assert not c.menu_open and v.state().target_temp == 21.0
-
-
-def test_ac_button_toggles_menu():
+def test_joystick_click_toggles_menu():
     _, c = make()
-    feed(c, "BTN AC")
+    feed(c, "JOY PRESS")
     assert c.menu_open
-    feed(c, "BTN AC")
+    feed(c, "JOY PRESS")
     assert not c.menu_open
+
+
+def test_joystick_ignored_after_click_closes_menu():
+    v, c = make()
+    feed(c, "JOY PRESS", "JOY PRESS", "JOY UP")
+    assert not c.menu_open and v.state().target_temp == 70.0
 
 
 def test_limits_hold():
     v, c = make()
-    feed(c, "BTN AC", *["JOY UP"] * 40, *["JOY RIGHT"] * 10)
+    feed(c, "JOY PRESS", *["JOY UP"] * 30, *["JOY RIGHT"] * 10)
     assert v.state().target_temp == TEMP_MAX and v.state().fan == 5
     acts = feed(c, "JOY UP", "JOY RIGHT")
     assert not any(a.changed for a in acts)
-    feed(c, *["JOY DOWN"] * 40, *["JOY LEFT"] * 10)
+    feed(c, *["JOY DOWN"] * 30, *["JOY LEFT"] * 10)
     assert v.state().target_temp == TEMP_MIN and v.state().fan == 0
 
 
@@ -106,7 +105,7 @@ def test_switches_set_heaters_fully_on_and_off():
 
 def test_switches_work_with_menu_closed_or_open():
     v, c = make()
-    feed(c, "BTN AC", "SW 1 ON")
+    feed(c, "JOY PRESS", "SW 1 ON")
     assert v.state().seat_heat["driver"] == 3 and c.menu_open
 
 
@@ -137,9 +136,9 @@ def test_cabin_drifts_to_outside_with_fan_off():
 # ---- serial transport, end to end ----
 def test_serial_source_end_to_end():
     src = SerialSource("loop://")  # pyserial loopback: what we write comes back as if from a board
-    v = SimulatedVehicle(ClimateState(target_temp=21.0, fan=2))
+    v = SimulatedVehicle(ClimateState(target_temp=70.0, fan=2))
     c = Controller(v)
-    for line in ("HELLO CarControl 1", "BTN AC", "JOY UP", "JOY RIGHT", "JOY PRESS", "SW 3 ON", "# debug"):
+    for line in ("HELLO CarControl 1", "JOY PRESS", "JOY UP", "JOY RIGHT", "JOY PRESS", "SW 3 ON", "# debug"):
         src.write_line(line)
     got = src.poll()
     assert [raw for raw, _ in got][-1] == "# debug" and got[-1][1] is None
@@ -147,7 +146,7 @@ def test_serial_source_end_to_end():
         if ev:
             c.handle(ev)
     s = v.state()
-    assert (s.target_temp, s.fan, s.wheel_heat, c.menu_open, c.board_connected) == (21.5, 3, 3, False, True)
+    assert (s.target_temp, s.fan, s.wheel_heat, c.menu_open, c.board_connected) == (71.0, 3, 3, False, True)
     src.close()
 
 

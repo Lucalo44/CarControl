@@ -1,13 +1,12 @@
 // CarControl controller firmware, USB serial version.
 //
 // For boards whose USB port talks straight to the microcontroller (UNO R3/R4, Nano, Leonardo...).
-// Reads a 5-way joystick, one push button and three toggle switches, and sends one event per line
+// Reads a 5-way joystick and three toggle switches, and sends one event per line
 // at 115200 baud (protocol in carcontrol/protocol.py):
 //
 //   HELLO CarControl 1     at boot, and in reply to "?" from the host
-//   BTN AC                 AC button pressed
 //   JOY UP|DOWN|LEFT|RIGHT joystick pushed; repeats every 150 ms after a 400 ms hold
-//   JOY PRESS              joystick clicked
+//   JOY PRESS              joystick clicked (opens and closes the climate menu)
 //   SW 1|2|3 ON|OFF        switch changed (all three are also sent after every HELLO)
 //
 // Wiring: every input goes between its pin and GND. The pins use the internal pull-ups,

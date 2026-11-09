@@ -4,7 +4,7 @@ It speaks the same line protocol as the firmware, over either a virtual serial p
 or TCP (like the UNO Q), and either plays a scripted demo or takes commands you type.
 
     python tools/fake_board.py                 # virtual serial port, scripted demo
-    python tools/fake_board.py --interactive   # type: ac, up, down, left, right, press, sw1 on, ...
+    python tools/fake_board.py --interactive   # type: up, down, left, right, press, sw1 on, ...
     python tools/fake_board.py --tcp 5555      # serve over TCP instead (connect with --tcp localhost:5555)
 """
 
@@ -19,14 +19,14 @@ import threading
 import time
 
 DEMO = [  # (seconds to wait first, line)
-    (1.0, "BTN AC"),
-    *[(0.35, "JOY DOWN")] * 6,  # cool it down from 21.0 to 18.0 °C
+    (1.0, "JOY PRESS"),  # open the climate menu
+    *[(0.35, "JOY DOWN")] * 6,  # cool it down from 70 to 64 °F
     *[(0.35, "JOY RIGHT")] * 3,  # fan 2 -> 5
-    (1.2, "JOY PRESS"),
+    (1.2, "JOY PRESS"),  # close it
     (1.2, "SW 1 ON"),
     (1.0, "SW 3 ON"),
     (1.5, "JOY UP"),  # ignored: menu is closed
-    (1.0, "BTN AC"),
+    (1.0, "JOY PRESS"),
     *[(0.35, "JOY LEFT")] * 2,
     *[(0.35, "JOY UP")] * 4,
     (1.2, "JOY PRESS"),
@@ -34,7 +34,7 @@ DEMO = [  # (seconds to wait first, line)
     (0.8, "SW 2 ON"),
 ]
 
-ALIASES = {"ac": "BTN AC", "up": "JOY UP", "down": "JOY DOWN", "left": "JOY LEFT", "right": "JOY RIGHT",
+ALIASES = {"up": "JOY UP", "down": "JOY DOWN", "left": "JOY LEFT", "right": "JOY RIGHT",
            "press": "JOY PRESS", "click": "JOY PRESS"}
 
 
@@ -134,7 +134,7 @@ def main() -> int:
                 link.send(ln)
 
     if args.interactive:
-        print("Commands: ac, up, down, left, right, press, sw1 on, sw2 off, ...  (Ctrl+D to quit)")
+        print("Commands: up, down, left, right, press, sw1 on, sw2 off, ...  (Ctrl+D to quit)")
         for raw in sys.stdin:
             answer_requests()
             line = board.translate(raw)
