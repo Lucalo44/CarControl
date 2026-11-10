@@ -16,7 +16,7 @@ const uint8_t PIN_SWITCH[3] = {3, 4, 5};  // 1 = driver seat, 2 = passenger seat
 // ---- joystick orientation: flip these if a direction comes out backwards ----
 const bool JOY_SWAP_XY = false;   // true if left/right and up/down are swapped
 const bool JOY_INVERT_X = false;  // true if left and right are reversed
-const bool JOY_INVERT_Y = false;  // true if up and down are reversed
+const bool JOY_INVERT_Y = true;   // true if up and down are reversed (true for my stick as mounted)
 
 const int ADC_MAX = 1023;         // 10-bit analogRead, the Arduino default
 const int JOY_ON_PCT = 50;        // push this far (% of travel from centre) to count as a press...
