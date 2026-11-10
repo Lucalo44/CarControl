@@ -48,6 +48,15 @@ class SerialSource(Source):
         self._ser.close()
 
 
+def parse_host_port(text: str) -> tuple[str, int]:
+    """'host:port' -> (host, port). Forgives a trailing full stop copied along with a command."""
+    text = text.strip().rstrip(".")
+    host, sep, port = text.rpartition(":")
+    if not sep or not host or not port.isdigit() or not 0 < int(port) < 65536:
+        raise ValueError(f"expected host:port, like localhost:5555 (got {text!r})")
+    return host, int(port)
+
+
 class TcpSource(Source):
     """A board that forwards its events over the network (the UNO Q's Linux side does this)."""
 

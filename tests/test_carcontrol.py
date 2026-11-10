@@ -4,7 +4,7 @@ import pytest
 
 from carcontrol.controller import Controller
 from carcontrol.protocol import Event, Kind, LineBuffer, parse_line
-from carcontrol.sources import SerialSource
+from carcontrol.sources import SerialSource, parse_host_port
 from carcontrol.vehicle import TEMP_MAX, TEMP_MIN, ClimateState, SimulatedVehicle
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -52,6 +52,21 @@ def test_line_buffer_drops_runaway_garbage():
     b = LineBuffer(max_line=16)
     b.feed(b"\xff" * 100)
     assert b.feed(b"JOY PRESS\n") == ["JOY PRESS"]
+
+
+@pytest.mark.parametrize("text,expected", [
+    ("localhost:5555", ("localhost", 5555)),
+    ("localhost:5555.", ("localhost", 5555)),  # full stop copied from a sentence
+    (" 192.168.1.20:5555 ", ("192.168.1.20", 5555)),
+])
+def test_parse_host_port(text, expected):
+    assert parse_host_port(text) == expected
+
+
+@pytest.mark.parametrize("text", ["localhost", ":5555", "localhost:", "localhost:abc", "localhost:70000"])
+def test_parse_host_port_rejects_junk(text):
+    with pytest.raises(ValueError):
+        parse_host_port(text)
 
 
 # ---- controller ----

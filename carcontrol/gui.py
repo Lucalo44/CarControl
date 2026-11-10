@@ -15,7 +15,7 @@ from PySide6 import QtCore, QtGui, QtWidgets
 
 from .controller import Controller
 from .protocol import Event, Kind
-from .sources import Source, SerialSource, TcpSource, list_serial_ports
+from .sources import Source, SerialSource, TcpSource, list_serial_ports, parse_host_port
 from .vehicle import FAN_MAX, HEAT_MAX, TEMP_MAX, TEMP_MIN, SimulatedVehicle
 
 # Colours after Volvo Car UX's dark theme: near-black glass, grey tiles, white type, blue for
@@ -577,8 +577,11 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _start_tcp(self, target: str):
         """Connect to a board over TCP, and keep retrying until it answers (and after it drops)."""
-        host, port = target.rsplit(":", 1)
-        self.retry = (host, int(port))
+        try:
+            self.retry = parse_host_port(target)
+        except ValueError as e:
+            self.conn_label.setText(f"Could not connect: {e}")
+            return
         self.next_try = 0.0
         self.connect_btn.setText("Stop")
         self._try_tcp()

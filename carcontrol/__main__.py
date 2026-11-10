@@ -16,20 +16,26 @@ def main(argv=None) -> int:
     ap.add_argument("--speed", type=float, default=10.0, help="cabin simulation speed-up (default 10x)")
     args = ap.parse_args(argv)
 
-    from .sources import SerialSource, TcpSource
+    from .sources import SerialSource, TcpSource, parse_host_port
+
+    tcp = None
+    if args.tcp:
+        try:
+            tcp = parse_host_port(args.tcp)
+        except ValueError as e:
+            ap.error(f"--tcp: {e}")
 
     if not args.headless:
         from .gui import run
 
         # the window opens its own TCP connection, so it can keep retrying until the board is up
-        return run(SerialSource(args.serial) if args.serial else None, args.speed, args.tcp)
+        return run(SerialSource(args.serial) if args.serial else None, args.speed, tcp and f"{tcp[0]}:{tcp[1]}")
 
     source = None
     if args.serial:
         source = SerialSource(args.serial)
     elif args.tcp:
-        host, port = args.tcp.rsplit(":", 1)
-        source = TcpSource(host, int(port))
+        source = TcpSource(*tcp)
 
     if source is None:
         ap.error("--headless needs --serial or --tcp")

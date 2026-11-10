@@ -116,9 +116,9 @@ The board sends one event per line at 115200 baud: `HELLO CarControl 1`, `JOY UP
 python -m pytest tests
 ```
 
-The 28 tests in [tests/test_carcontrol.py](tests/test_carcontrol.py) cover several areas:
+The 36 tests in [tests/test_carcontrol.py](tests/test_carcontrol.py) cover several areas:
 
-1. **Protocol:** the parser, plus serial reads that split lines at arbitrary points.
+1. **Protocol:** the parser, the `host:port` parser, and serial reads that split lines at arbitrary points.
 2. **Menu rules:** the click toggling the menu, and the joystick doing nothing while the menu is closed.
 3. **Limits:** temperature and fan stop at their ends.
 4. **Heaters:** each switch turns its heater fully on and off.
