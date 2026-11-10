@@ -97,7 +97,7 @@ adb forward tcp:5555 tcp:5555
 python -m carcontrol --tcp localhost:5555
 ```
 
-The first start takes a few minutes, since it compiles the sketch and builds the Python container. Over Wi-Fi, skip the forward and connect to `--tcp <board-ip>:5555` instead. Before opening the window, `python -m carcontrol --headless --tcp localhost:5555` prints one line per input, which is the quickest way to check each wire and the stick's directions.
+The first start takes a few minutes, since it compiles the sketch and builds the Python container. With `--tcp`, the window keeps retrying every 2s until the board answers, and it reconnects on its own if the board resets. For `localhost`, it also renews the adb port forward on each try, since that forward disappears whenever the board reboots. I added this after the window sat there disconnected because I'd opened it before the app on the board had finished starting. Over Wi-Fi, skip the forward and connect to `--tcp <board-ip>:5555` instead. Before opening the window, `python -m carcontrol --headless --tcp localhost:5555` prints one line per input, which is the quickest way to check each wire and the stick's directions.
 
 The first real run went better than I expected. The Bridge calls, which I'd written from Arduino's documentation without a board to check them against, worked the first time. A few things did trip me up:
 

@@ -18,17 +18,18 @@ def main(argv=None) -> int:
 
     from .sources import SerialSource, TcpSource
 
+    if not args.headless:
+        from .gui import run
+
+        # the window opens its own TCP connection, so it can keep retrying until the board is up
+        return run(SerialSource(args.serial) if args.serial else None, args.speed, args.tcp)
+
     source = None
     if args.serial:
         source = SerialSource(args.serial)
     elif args.tcp:
         host, port = args.tcp.rsplit(":", 1)
         source = TcpSource(host, int(port))
-
-    if not args.headless:
-        from .gui import run
-
-        return run(source, args.speed)
 
     if source is None:
         ap.error("--headless needs --serial or --tcp")

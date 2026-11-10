@@ -7,6 +7,8 @@ on-screen buttons do.
 
 from __future__ import annotations
 
+import shutil
+import subprocess
 import time
 
 from PySide6 import QtCore, QtGui, QtWidgets
@@ -431,12 +433,16 @@ class ControllerPanel(QtWidgets.QWidget):
 # Main window
 # --------------------------------------------------------------------------- #
 class MainWindow(QtWidgets.QMainWindow):
-    def __init__(self, source: Source | None = None, speed: float = 10.0):
+    RETRY_S = 2.0
+
+    def __init__(self, source: Source | None = None, speed: float = 10.0, tcp: str | None = None):
         super().__init__()
         self.setWindowTitle("CarControl — climate simulator (left-hand-drive Volvo)")
         self.vehicle = SimulatedVehicle()
         self.ctrl = Controller(self.vehicle)
         self.source: Source | None = None
+        self.retry: tuple[str, int] | None = None  # TCP board to keep reconnecting to
+        self.next_try = 0.0
 
         central = QtWidgets.QWidget()
         self.setCentralWidget(central)
@@ -507,6 +513,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.timer.start()
         if source is not None:
             self._attach(source)
+        elif tcp:
+            self.port_combo.setEditText(tcp)
+            self._start_tcp(tcp)
         self.resize(1180, 820)
 
     # ---- input ----
@@ -548,21 +557,42 @@ class MainWindow(QtWidgets.QMainWindow):
             self.port_combo.setEditText(cur)
 
     def toggle_connection(self):
-        if self.source:
+        if self.source or self.retry:
+            self.retry = None
             self._detach("Disconnected")
             return
         target = self.port_combo.currentText().strip()
         if not target:
             self.conn_label.setText("Pick or type a serial port first.")
             return
+        if ":" in target and not target.startswith(("/", "COM", "loop:", "socket:", "rfc2217:")):
+            self._start_tcp(target)
+            return
         try:
-            if ":" in target and not target.startswith(("/", "COM", "loop:", "socket:", "rfc2217:")):
-                host, port = target.rsplit(":", 1)
-                src = TcpSource(host, int(port))
-            else:
-                src = SerialSource(target)
+            src = SerialSource(target)
         except Exception as e:  # noqa: BLE001
             self.conn_label.setText(f"Could not open {target}: {e}")
+            return
+        self._attach(src)
+
+    def _start_tcp(self, target: str):
+        """Connect to a board over TCP, and keep retrying until it answers (and after it drops)."""
+        host, port = target.rsplit(":", 1)
+        self.retry = (host, int(port))
+        self.next_try = 0.0
+        self.connect_btn.setText("Stop")
+        self._try_tcp()
+
+    def _try_tcp(self):
+        host, port = self.retry
+        self.next_try = time.monotonic() + self.RETRY_S
+        if host in ("localhost", "127.0.0.1") and shutil.which("adb"):
+            # a UNO Q over USB: the adb port forward disappears when the board reboots, so renew it
+            subprocess.run(["adb", "forward", f"tcp:{port}", f"tcp:{port}"], capture_output=True, timeout=3)
+        try:
+            src = TcpSource(host, port, timeout=1.0)
+        except OSError:
+            self.conn_label.setText(f"Waiting for the board on {host}:{port}…")
             return
         self._attach(src)
 
@@ -578,8 +608,8 @@ class MainWindow(QtWidgets.QMainWindow):
             self.source.close()
         self.source = None
         self.ctrl.board_connected = False
-        self.connect_btn.setText("Connect")
-        self.conn_label.setText(why)
+        self.connect_btn.setText("Stop" if self.retry else "Connect")
+        self.conn_label.setText(why + (" Retrying…" if self.retry else ""))
         self.display.update()
 
     # ---- loop ----
@@ -602,6 +632,8 @@ class MainWindow(QtWidgets.QMainWindow):
                     self._detach("The board closed the connection.")
             except Exception as e:  # noqa: BLE001  (unplugged mid-session, etc.)
                 self._detach(f"Connection lost: {e}")
+        elif self.retry and now >= self.next_try:
+            self._try_tcp()
         self.display.update()
 
     def closeEvent(self, ev):
@@ -610,9 +642,9 @@ class MainWindow(QtWidgets.QMainWindow):
         super().closeEvent(ev)
 
 
-def run(source: Source | None = None, speed: float = 10.0) -> int:
+def run(source: Source | None = None, speed: float = 10.0, tcp: str | None = None) -> int:
     app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
     app.setApplicationName("CarControl")
-    w = MainWindow(source, speed)
+    w = MainWindow(source, speed, tcp)
     w.show()
     return app.exec()
