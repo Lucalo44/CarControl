@@ -1,7 +1,7 @@
 // CarControl controller firmware, USB serial version.
 //
 // For boards whose USB port talks straight to the microcontroller (UNO R3/R4, Nano, Leonardo...).
-// Reads a 5-way joystick and three toggle switches, and sends one event per line
+// Reads an analog thumb joystick and three toggle switches, and sends one event per line
 // at 115200 baud (protocol in carcontrol/protocol.py):
 //
 //   HELLO CarControl 1     at boot, and in reply to "?" from the host
@@ -9,8 +9,11 @@
 //   JOY PRESS              joystick clicked (opens and closes the climate menu)
 //   SW 1|2|3 ON|OFF        switch changed (all three are also sent after every HELLO)
 //
-// Wiring: every input goes between its pin and GND. The pins use the internal pull-ups,
-// so no resistors are needed and a closed contact reads LOW.
+// Wiring (pin map in carcontrol_inputs.h):
+//   joystick GND -> GND, +5V -> the board's logic voltage (3.3V on 3.3V boards), VRx -> A0, VRy -> A1, SW -> D2
+//   switches 1, 2, 3 between D3, D4, D5 and GND
+// The digital pins use the internal pull-ups, so no resistors are needed and a closed contact reads LOW.
+// Leave the stick centred while the board starts: it measures its resting position then.
 
 #include "carcontrol_inputs.h"
 

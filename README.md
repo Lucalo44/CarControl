@@ -1,6 +1,6 @@
 # CarControl
 
-The goal of this project was a physical climate controller for my 2025 Volvo V60. The idea is a 5-way joystick and three toggle switches wired to an Arduino UNO Q, which sends commands to the car over USB. The V60 puts almost all of its climate controls on the touchscreen, and reaching for a menu to bump the fan up a notch while driving gets old quickly.
+The goal of this project was a physical climate controller for my 2025 Volvo V60. The idea is a thumb joystick and three toggle switches wired to an Arduino UNO Q, which sends commands to the car over USB. The V60 puts almost all of its climate controls on the touchscreen, and reaching for a menu to bump the fan up a notch while driving gets old quickly.
 
 The controller half of this works. The car half, as it turns out, can't be done over USB, so this repo pairs the real controller with a simulated car to develop and demo it on.
 
@@ -20,7 +20,7 @@ From simplest to most involved:
    1. Switch 1 turns the driver seat heater all the way on (level 3 of 3), and off when flipped back.
    2. Switch 2 does the same for the passenger seat.
    3. Switch 3 does the same for the steering wheel heater.
-2. **Clicking the joystick** opens the climate menu, and clicking it again closes it. I originally had a separate AC button for this, but the click on a 5-way module already does the job, and dropping the button means one less hole to drill and one less pin to wire.
+2. **Clicking the joystick** opens the climate menu, and clicking it again closes it. I originally had a separate AC button for this, but the joystick's own click already does the job, and dropping the button means one less hole to drill and one less pin to wire.
 3. **Pushing the joystick** only does anything while the climate menu is open, so bumping the stick can't change the climate by accident. Opening the menu takes a deliberate click.
    1. Up and down raise and lower the temperature by 1 °F, between 62 and 82 °F (the same range and step as a US-market Volvo).
    2. Left and right lower and raise the fan speed, from off up to 5.
@@ -70,12 +70,13 @@ Add `--interactive` to type the inputs yourself (`press`, `up`, `left`, `sw1 on`
 
 ### Wiring
 
-Every input goes between its pin and GND. The firmware turns on the internal pull-ups, so there are no resistors to add, and a closed contact reads LOW. That suits the UNO Q's 3.3V microcontroller fine. The pin map sits at the top of [carcontrol_inputs.h](firmware/carcontrol_serial/carcontrol_inputs.h):
+I first wrote the firmware for a 5-way switch module, then found that the joystick I actually have is an analog thumb stick (GND, +5V, VRx, VRy and SW pins). Each axis is a potentiometer, so the firmware reads VRx and VRy on analog pins and counts a push past 50% of the travel as a press of that direction. It only lets go once the stick is back inside 30%, which stops it flickering on the edge. Of note, only the axis pushed furthest counts, so a sloppy diagonal can't change the temperature and the fan at once. The pin map sits at the top of [carcontrol_inputs.h](firmware/carcontrol_serial/carcontrol_inputs.h):
 
-1. Joystick up, down, left, right and click on D2 to D6. The common pin of the 5-way module goes to GND.
-2. Switches 1, 2 and 3 on D7, D8 and D9 (they moved down one pin when the AC button came out).
+1. Joystick GND to GND, and +5V to **3.3V**. The UNO Q's microcontroller runs at 3.3V, and feeding the stick 5V would put up to 5V on its analog pins. On a 5V board like the UNO R4, 5V is fine.
+2. VRx to A0, VRy to A1, and SW to D2. SW closes to GND on a click, and the firmware turns on the pin's internal pull-up, so it needs no resistor.
+3. Switches 1, 2 and 3 between D3, D4 and D5 and GND, again on internal pull-ups.
 
-The firmware debounces each input for 20ms. It sends switch positions on every change, and all three again whenever the host connects, so the display never shows a heater off while its switch is on.
+The firmware measures where the stick rests when the board starts, so it should be left centred during boot. Which way a stick reads depends on how it's mounted. If up comes out as down, or the axes are swapped, there are three flags (`JOY_INVERT_X`, `JOY_INVERT_Y`, `JOY_SWAP_XY`) next to the pin map. The firmware debounces each input for 20ms. It sends switch positions on every change, and all three again whenever the host connects, so the display never shows a heater off while its switch is on.
 
 ### Which firmware
 

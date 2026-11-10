@@ -1,2 +1,2 @@
 name: CarControl
-description: Reads a 5-way joystick and three switches, and serves the events to a host over TCP port 5555.
+description: Reads a thumb joystick and three switches, and serves the events to a host over TCP port 5555.

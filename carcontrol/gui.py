@@ -387,7 +387,7 @@ class ControllerPanel(QtWidgets.QWidget):
         super().__init__()
         lay = QtWidgets.QVBoxLayout(self)
 
-        box = QtWidgets.QGroupBox("Joystick (5-way, click = climate)")
+        box = QtWidgets.QGroupBox("Joystick (click = climate)")
         grid = QtWidgets.QGridLayout(box)
         self.joy = {}
         for name, glyph, r, c in (("UP", "▲", 0, 1), ("LEFT", "◀", 1, 0), ("PRESS", "●", 1, 1),
