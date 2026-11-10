@@ -8,7 +8,7 @@ The controller half of this works. The car half, as it turns out, can't be done 
 
 ## Can it run in the real car?
 
-Not over USB, at least not without going somewhere I don't want to go. The V60's infotainment runs Google built-in (Android Automotive), and as far as I can tell its USB ports only handle media, phone projection and charging. Nothing plugged into them can change the climate. The climate system lives on the car's internal CAN network. Injecting messages there is technically possible, but it means tapping wiring that also carries safety-critical traffic. It also risks the warranty, so I've ruled it out. Volvo's cloud API can start and stop preconditioning remotely, but as far as I know it can't set a temperature, a fan speed or the seat heaters, so it doesn't fit this either.
+Not over USB, at least not without going somewhere I don't want to go. The V60's infotainment runs Google built-in (Android Automotive), and as far as I can tell its USB ports only handle media, phone projection and charging. Nothing plugged into them can change the climate. The climate system lives on the car's internal CAN network. Injecting messages there is technically possible, but it means tapping wiring that also carries safety-critical traffic. It also risks the warranty, so I've ruled it out. Volvo's cloud API can start and stop preconditioning remotely, but as far as I know it can't set a temperature, a fan speed or the seat heaters, so it doesn't fit this either. CarPlay and Android Auto don't help, since both only project phone apps onto the screen and have no access to the car's climate.
 
 With this in mind, everything on the car side goes through one interface in [carcontrol/vehicle.py](carcontrol/vehicle.py). Right now `SimulatedVehicle` implements it. If a sanctioned way to command the car shows up, it only has to implement the same five methods, and the controller, firmware and protocol stay as they are.
 
@@ -76,16 +76,35 @@ I first wrote the firmware for a 5-way switch module, then found that the joysti
 2. VRx to A0, VRy to A1, and SW to D2. SW closes to GND on a click, and the firmware turns on the pin's internal pull-up, so it needs no resistor.
 3. Switches 1, 2 and 3 between D3, D4 and D5 and GND, again on internal pull-ups.
 
-The firmware measures where the stick rests when the board starts, so it should be left centred during boot. Which way a stick reads depends on how it's mounted. If up comes out as down, or the axes are swapped, there are three flags (`JOY_INVERT_X`, `JOY_INVERT_Y`, `JOY_SWAP_XY`) next to the pin map. The firmware debounces each input for 20ms. It sends switch positions on every change, and all three again whenever the host connects, so the display never shows a heater off while its switch is on.
+The firmware measures where the stick rests when the board starts, so it should be left centred during boot. Which way a stick reads depends on how it's mounted. If up comes out as down, or the axes are swapped, there are three flags (`JOY_INVERT_X`, `JOY_INVERT_Y`, `JOY_SWAP_XY`) next to the pin map. My stick came out with up and down reversed on the first try, so `JOY_INVERT_Y` is set to true. Left and right were correct out of the box. The firmware debounces each input for 20ms. It sends switch positions on every change, and all three again whenever the host connects, so the display never shows a heater off while its switch is on.
 
 ### Which firmware
 
 Specifically, the UNO Q's USB-C port belongs to its Linux processor rather than the microcontroller the buttons are wired to. That's why there are two versions:
 
 1. **[firmware/carcontrol_serial](firmware/carcontrol_serial/carcontrol_serial.ino)** is for boards whose USB port talks straight to the microcontroller (UNO R3/R4, Nano and the like). Flash it from the Arduino IDE, then run `python -m carcontrol` and pick the port, or pass `--serial /dev/cu.usbmodem…`.
-2. **[firmware/unoq_app](firmware/unoq_app/)** is an Arduino App Lab app for the UNO Q. The [sketch](firmware/unoq_app/sketch/sketch.ino) reads the inputs and hands each event across the Bridge to [python/main.py](firmware/unoq_app/python/main.py) on the Linux side. That script serves the events on TCP port 5555, in the same line protocol. Connect with `--tcp <board-ip>:5555`. To keep it over the USB cable instead, forward the port with `adb forward tcp:5555 tcp:5555` and connect to `localhost:5555`.
+2. **[firmware/unoq_app](firmware/unoq_app/)** is an Arduino App Lab app for the UNO Q, and it's the one I actually run. The [sketch](firmware/unoq_app/sketch/sketch.ino) reads the inputs and hands each event across the Bridge to [python/main.py](firmware/unoq_app/python/main.py) on the Linux side. That script serves the events on TCP port 5555, in the same line protocol.
 
-I haven't flashed either one onto real hardware yet. Of the two, the UNO Q app is the bigger unknown, since I wrote its Bridge calls from Arduino's documentation without a board to check them against.
+### Running it on the UNO Q
+
+The UNO Q shows up over USB-C as an adb device, and its Linux side has `arduino-app-cli`, so the app can be deployed straight from a terminal without opening App Lab:
+
+```bash
+adb shell mkdir -p /home/arduino/ArduinoApps/carcontrol
+adb push firmware/unoq_app/app.yaml firmware/unoq_app/sketch firmware/unoq_app/python /home/arduino/ArduinoApps/carcontrol/
+adb shell arduino-app-cli app start user:carcontrol    # compiles and flashes the sketch, then starts the Python side
+adb forward tcp:5555 tcp:5555
+python -m carcontrol --tcp localhost:5555
+```
+
+The first start takes a few minutes, since it compiles the sketch and builds the Python container. Over Wi-Fi, skip the forward and connect to `--tcp <board-ip>:5555` instead. Before opening the window, `python -m carcontrol --headless --tcp localhost:5555` prints one line per input, which is the quickest way to check each wire and the stick's directions.
+
+The first real run went better than I expected. The Bridge calls, which I'd written from Arduino's documentation without a board to check them against, worked the first time. A few things did trip me up:
+
+1. App Lab apps need a `sketch.yaml` and the port listed in `app.yaml`. Neither was in my first version, and both are in the repo now.
+2. Only one app runs at a time. The board refused to start CarControl while my earlier test app was running, so that one has to be stopped first (`arduino-app-cli app stop user:<name>`).
+3. The app doesn't start by itself after the board resets, so `app start` has to be run again.
+4. The board reset twice while I was handling the wiring. Each time its log simply stopped, with no shutdown, which points to a short between 3.3V and GND rather than a software crash. I now unplug the board before moving any jumpers.
 
 ### The protocol
 
